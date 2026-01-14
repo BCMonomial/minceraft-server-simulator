@@ -141,3 +141,32 @@ button.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     font-size: 1.1rem;
     color: var(--accent-green);
 }
+
+#val-energy {
+    font-size: 1.1em;
+    color: var(--accent-green);
+}
+
+@keyframes fadeInSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-10px); /* 从上方一点点滑入 */
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 应用动画的类 */
+.log-entry.animate-in {
+    animation: fadeInSlide 0.4s ease-out forwards;
+}
+
+/* 禁用状态下的按钮样式增强 */
+button.action-btn:disabled,
+#next-week-btn:disabled {
+    opacity: 0.5;
+    cursor: wait; /* 鼠标变成等待漏斗 */
+    filter: grayscale(0.8);
+}

@@ -1,55 +1,66 @@
 // === 游戏数据结构 ===
 const Game = {
     state: {
+        semester: 1,
         week: 1,
+        weekInSem: 1,
         gameOver: false,
-        mode: 'nonprofit', // nonprofit, commercial
-        type: 'vanilla',   // vanilla, modded
+        isSkippingTurn: false,
+        mode: 'nonprofit',
+        type: 'vanilla',
         
-        // 玩家属性
         player: {
-            energy: 100,
-            maxEnergy: 100,
+            energy: 10,
+            maxEnergy: 10,
             tech: 30,
             culture: 80,
-            wealth: 500,
+            wealth: 500, 
             passion: 100
         },
-        // 服务器属性
         server: {
-            health: 100,     // 技术状态
-            online: 0,       // 当前在线
-            capacity: 20,    // 承载力
-            hype: 50,        // 人气
-            reputation: 60   // 口碑
+            hardware: 'vps_basic', 
+            health: 100,
+            activePlayers: 0,      
+            onlinePlayers: 0,      
+            hype: 50,              
+            reputation: 60,        
+            nextBillWeek: 4        
         }
     },
 
-    // 游戏常量配置
+    // 日志队列系统
+    logQueue: [],
+    isProcessingQueue: false,
+
     config: {
-        rentPerSlot: 2, 
-        actions: {
-            maintain: { energy: 30 },
-            promote: { energy: 40, cost: 50 },
-            study: { energy: 50 },
-            work: { energy: 60 },
-            upgrade: { cost: 200, capacityAdd: 10 }
+        energyRegen: 3,
+        semesterLength: 24,
+        allowance: 50, 
+        
+        hardwareList: {
+            'vps_basic': { name: "入门级VPS", cap: 15, cost: 40, next: 'vps_pro' },
+            'vps_pro':   { name: "进阶版VPS", cap: 50, cost: 120, next: 'dedi_used' },
+            'dedi_used': { name: "二手独立机", cap: 150, cost: 450, next: 'dedi_pro' },
+            'dedi_pro':  { name: "专业独立机", cap: 500, cost: 1200, next: null }
+        },
+
+        baseCosts: {
+            maintain: 2,
+            promote: 3,
+            work: 3
         }
     },
 
     // === 核心方法 ===
-    
     init: function() {
-        // 读取用户选择
         this.state.mode = selectedOptions.mode;
         this.state.type = selectedOptions.type;
         
-        // 根据选择应用初始buff/debuff
         if (this.state.mode === 'commercial') {
-            this.state.player.wealth += 500;
-            this.state.server.reputation -= 20;
+            this.state.player.wealth = 1000; 
+            this.state.server.reputation = 40;
         } else {
-            this.state.server.reputation += 20;
+            this.state.server.reputation = 70;
         }
 
         if (this.state.type === 'modded') {
@@ -58,168 +69,337 @@ const Game = {
             this.state.player.tech += 10;
         }
 
+        this.state.server.hardware = 'vps_basic';
+        this.state.server.nextBillWeek = 4;
+
         this.log("服务器初始化完成...", "log-event");
-this.log(`服务器方案已确认。运营模式: [${this.state.mode === 'nonprofit' ? '公益' : '商业'}] | 架构: [${this.state.type === 'vanilla' ? '纯净' : '模组'}]`);
-        this.updateUI();
+        this.log(`当前配置: [${this.config.hardwareList['vps_basic'].name}] (月租 ¥${this.config.hardwareList['vps_basic'].cost})`);
         
+        this.updateUI();
         document.getElementById('setup-modal').classList.add('hidden');
         document.getElementById('overlay').classList.add('hidden');
     },
 
-    // 玩家行动逻辑
+    // --- 辅助：计算行动消耗 ---
+    getActionCost: function(actionType) {
+        let cost = this.config.baseCosts[actionType] || 0;
+        let reasons = [];
+
+        if (actionType === 'maintain' && this.state.player.tech < 30) {
+            cost += 1;
+            reasons.push("技术生疏(+1)");
+        }
+        if (this.state.player.passion < 40 && Math.random() < 0.5) {
+            cost += 1;
+            reasons.push("心态炸裂(+1)");
+        }
+
+        return { total: cost, details: reasons };
+    },
+
+    // --- 玩家行动 ---
     actions: {
         maintain: function() {
-            if (!Game.checkCost(30, 0)) return;
+            const costObj = Game.getActionCost('maintain');
+            if (!Game.checkCost(costObj.total, 0)) return;
             
-            const fixAmount = 20 + Math.floor(Game.state.player.tech * 0.5);
-            Game.state.server.health = Math.min(100, Game.state.server.health + fixAmount);
-            Game.state.player.energy -= 30;
+            const baseFix = 20;
+            const techBonus = Math.floor(Game.state.player.tech * 0.5);
+            const totalFix = baseFix + techBonus;
+
+            Game.state.server.health = Math.min(100, Game.state.server.health + totalFix);
+            Game.consumeEnergy(costObj);
             
+            Game.state.player.passion -= 2;
+
             if (Math.random() > 0.7) {
-                Game.state.player.tech += 2;
-                Game.log("在修复Bug时学到了新知识！技术+2", "log-success");
+                Game.state.player.tech += 1;
+                Game.log(`维护中学到了新知识 (技术+1，热情-2)`);
             } else {
-                Game.log(`清理了报错日志，服务器状态回升 (+${fixAmount}%)`);
+                Game.log(`清理了缓存和日志 (状态+${totalFix}%，热情-2)`);
             }
             Game.updateUI();
         },
         
         promote: function() {
-            if (!Game.checkCost(40, 50)) return;
+            const costObj = Game.getActionCost('promote');
+            if (!Game.checkCost(costObj.total, 50)) return;
             
-            const hypeGain = 10 + Math.floor(Math.random() * 10);
-            Game.state.server.hype += hypeGain;
-            Game.state.player.energy -= 40;
-            
-            Game.log(`你决定做一些宣传材料，人气提升 (+${hypeGain})`);
-            Game.updateUI();
-        },
+            const baseHype = 15;
+            const cultureBonus = Math.floor(Game.state.player.culture * 0.25);
+            const totalHype = baseHype + Math.floor(Math.random() * 10) + cultureBonus;
 
-        study: function() {
-            if (!Game.checkCost(50, 0)) return;
+            Game.state.server.hype += totalHype;
+            Game.state.player.wealth -= 50;
+            Game.consumeEnergy(costObj);
             
-            const gain = 5 + Math.floor(Math.random() * 5);
-            Game.state.player.culture = Math.min(100, Game.state.player.culture + gain);
-            Game.state.player.energy -= 50;
+            Game.state.player.passion -= 1;
             
-            Game.log(`你决定学习，学业 (+${gain})`);
+            Game.log(`到处发宣传贴 (人气+${totalHype}，热情-1)`);
             Game.updateUI();
         },
 
         work: function() {
-            if (!Game.checkCost(60, 0)) return;
+            const costObj = Game.getActionCost('work');
+            if (!Game.checkCost(costObj.total, 0)) return;
             
-            const earn = 50 + Math.floor(Math.random() * 50);
+            const earn = 60 + Math.floor(Math.random() * 40); 
             Game.state.player.wealth += earn;
-            Game.state.player.energy -= 60;
+            Game.consumeEnergy(costObj);
             
-            Game.log(`帮隔壁班同学代打排位，赚了 ¥${earn}`);
+            Game.state.player.passion -= 3;
+            
+            Game.log(`打工赚了 ¥${earn} (热情-3)`);
             Game.updateUI();
         },
 
         upgrade: function() {
-            if (!Game.checkCost(0, 200)) return;
+            const currentKey = Game.state.server.hardware;
+            const currentHw = Game.config.hardwareList[currentKey];
+            const nextKey = currentHw.next;
+
+            if (!nextKey) {
+                Game.log("已经是最高配置了！", "log-danger");
+                return;
+            }
+
+            const nextHw = Game.config.hardwareList[nextKey];
+            const upgradeCost = nextHw.cost; 
+
+            if (!Game.checkCost(0, upgradeCost)) return;
+
+            Game.state.server.hardware = nextKey;
+            Game.state.player.wealth -= upgradeCost;
             
-            Game.state.server.capacity += 10;
-            Game.state.player.wealth -= 200;
+            Game.state.player.passion = Math.min(100, Game.state.player.passion + 10);
             
-            Game.log("升级了服务器内存！最大人数 +10", "log-success");
+            Game.log(`迁移至 [${nextHw.name}]！(热情+10)`, "log-success");
             Game.updateUI();
         }
     },
 
-    // 下一周（核心循环）
+    consumeEnergy: function(costObj) {
+        this.state.player.energy -= costObj.total;
+        if (costObj.details.length > 0) {
+            this.log(`额外消耗: ${costObj.details.join(', ')}`, "log-danger");
+        }
+    },
+
+    // --- 核心循环：下一周 ---
     nextTurn: function() {
         if (this.state.gameOver) return;
-
-        const s = this.state.server;
         const p = this.state.player;
+        const s = this.state.server;
 
+        // 0. 学期结算
+        if (this.state.weekInSem >= this.config.semesterLength) {
+            this.triggerSettlement(true);
+            return;
+        }
+
+        // 1. 精力透支检查
+        if (p.energy <= 0 && !this.state.isSkippingTurn) {
+            this.state.isSkippingTurn = true;
+            this.log(`⚠️ 精力耗尽，本周强制休息！`, "log-danger");
+            this.processRestWeek();
+            return;
+        }
+
+        // 2. 正常结算
+        this.state.isSkippingTurn = false;
         this.log(`--- 第 ${this.state.week} 周结算 ---`, "log-turn");
+        p.energy = Math.min(p.maxEnergy, p.energy + this.config.energyRegen);
 
-        // 1. 扣房租
-        const rent = s.capacity * this.config.rentPerSlot;
-        p.wealth -= rent;
-        this.log(`支付服务器租金: -¥${rent}`);
-
-        // 2. 技术状态衰减
-        let decay = this.state.type === 'modded' ? 15 : 8;
-        decay = Math.max(2, decay - Math.floor(p.tech / 10)); 
-        s.health -= decay;
+        // 环境热情判定
+        let passionChange = 0;
+        let passionReasons = [];
         
-        // 3. 计算在线人数
-        let potentialPlayers = Math.floor(s.hype * 0.5);
-        if (potentialPlayers > s.capacity) {
-            this.log("⚠️ 服务器满载！出现卡顿，部分玩家流失。", "log-danger");
-            s.reputation -= 2;
-            s.activePlayers = s.capacity;
-        } else {
-            s.activePlayers = potentialPlayers;
+        if (s.activePlayers < 5) {
+            passionChange -= 2;
+            passionReasons.push("没人玩");
+        } else if (s.onlinePlayers > 30) {
+            passionChange -= 2;
+            passionReasons.push("管理压力大");
         }
         
-        // 4. 计算收入
-        if (this.state.mode === 'commercial') {
-            const income = s.activePlayers * 5;
-            if (income > 0) {
-                p.wealth += income;
-                this.log(`玩家氪金收入: +¥${income}`, "log-success");
+        if (s.health < 50) {
+            passionChange -= 3;
+            passionReasons.push("Bug频出");
+        }
+
+        if (passionChange !== 0) {
+            p.passion += passionChange;
+            this.log(`热情变动(${passionChange}): ${passionReasons.join(',')}`, passionChange < 0 ? "log-danger" : "");
+        }
+
+        // 3. 租金账单检查
+        if (this.state.week >= s.nextBillWeek) {
+            const hw = this.config.hardwareList[s.hardware];
+            if (p.wealth >= hw.cost) {
+                p.wealth -= hw.cost;
+                s.nextBillWeek += 4;
+                this.log(`自动续费 [${hw.name}]: -¥${hw.cost}`, "log-success");
+            } else {
+                this.triggerSettlement(false, "没钱续费服务器，被服务商停机删库。");
+                return;
             }
         } else {
-            const allowance = 50;
-            p.wealth += allowance;
-            this.log(`本周零花钱: +¥${allowance}`);
+            const weeksLeft = s.nextBillWeek - this.state.week;
+            if (weeksLeft <= 1) {
+                this.log(`⚠️ 注意：下周需要缴纳租金！`, "log-danger");
+            }
         }
 
-        // 5. 事件判定
-        this.triggerEvents();
+        // 4. 服务器流量与性能
+        this.processServerMetrics();
 
-        // 6. 重置与修正
-        p.energy = p.maxEnergy;
-        s.health = Math.max(0, s.health);
-        s.hype = Math.max(0, s.hype - 1);
+        // 5. 事件与判定
+        this.triggerEvents();
         
-        // 7. 失败判定
-        this.checkGameOver();
+        const failReason = this.checkFailCondition();
+        if (failReason) {
+            this.triggerSettlement(false, failReason);
+            return;
+        }
 
         this.state.week++;
+        this.state.weekInSem++;
         this.updateUI();
     },
 
-    // 随机事件系统
+    processRestWeek: function() {
+        const p = this.state.player;
+        const s = this.state.server;
+        
+        this.log(`--- 第 ${this.state.week} 周 (休息中) ---`, "log-turn");
+        
+        if (this.state.week >= s.nextBillWeek) {
+            const hw = this.config.hardwareList[s.hardware];
+            if (p.wealth >= hw.cost) {
+                p.wealth -= hw.cost;
+                s.nextBillWeek += 4;
+                this.log(`自动续费: -¥${hw.cost}`);
+            } else {
+                this.triggerSettlement(false, "卧床休息期间服务器欠费停机。");
+                return;
+            }
+        }
+
+        s.hype = Math.max(0, s.hype - 3); 
+        s.health -= 5;
+        p.energy = p.maxEnergy;
+        this.log("休息恢复了精力，但服务器缺乏维护。");
+
+        this.processServerMetrics();
+
+        const failReason = this.checkFailCondition();
+        if (failReason) {
+            this.triggerSettlement(false, failReason);
+            return;
+        }
+
+        this.state.week++;
+        this.state.weekInSem++;
+        this.updateUI();
+    },
+
+    processServerMetrics: function() {
+        const s = this.state.server;
+        const p = this.state.player;
+        const hw = this.config.hardwareList[s.hardware];
+
+        // 1. 活跃玩家
+        let newPlayersBase = Math.floor(s.hype / 10);
+        let churnRate = 0.05 + (Math.random() * 0.05); 
+
+        if (this.state.type === 'modded') {
+            newPlayersBase += 2;
+            churnRate -= 0.02; 
+            if (s.health < 60) churnRate += 0.15;
+        } else {
+            churnRate += 0.02;
+            if (s.reputation > 80) churnRate -= 0.03;
+            if (s.reputation > 70) newPlayersBase += Math.floor((s.reputation - 70) / 10);
+        }
+
+        const churnCount = Math.ceil(s.activePlayers * churnRate);
+        const netChange = newPlayersBase - churnCount;
+        s.activePlayers = Math.max(0, s.activePlayers + netChange);
+        
+        // 2. 在线人数
+        let onlineRatioBase = this.state.type === 'modded' ? 0.22 : 0.18;
+        const onlineRatio = onlineRatioBase + (Math.random() * 0.05); 
+        let potentialCCU = Math.ceil(s.activePlayers * onlineRatio);
+
+        // 3. 性能判定
+        if (potentialCCU > hw.cap) {
+            s.onlinePlayers = hw.cap;
+            this.log(`⚠️ 满载 (${s.onlinePlayers}/${hw.cap})！排队导致口碑下跌。`, "log-danger");
+            s.reputation -= 2; 
+            s.hype -= 2;
+            p.passion -= 1;
+        } else {
+            s.onlinePlayers = potentialCCU;
+        }
+
+        // 4. 技术衰减
+        let decay = this.state.type === 'modded' ? 14 : 7;
+        decay = Math.max(2, decay - Math.floor(p.tech / 8)); 
+        s.health -= decay;
+        s.health = Math.max(0, s.health);
+
+        // 5. 收入计算
+        if (this.state.mode === 'commercial') {
+            let arpu = this.state.type === 'modded' ? 3.0 : 1.5; 
+            const income = Math.floor(s.onlinePlayers * arpu); 
+            if (income > 0) {
+                p.wealth += income;
+                this.log(`玩家充值: +¥${income}`, "log-success");
+            }
+        } else {
+            let donateChance = 0.1;
+            if (s.activePlayers > 50) donateChance = 0.25; 
+            if (s.activePlayers > 10 && Math.random() < donateChance) {
+                const donation = 2 + Math.floor(Math.random() * 8); 
+                p.wealth += donation;
+                this.log(`收到玩家请喝可乐: +¥${donation}`, "log-success");
+            }
+            p.wealth += this.config.allowance;
+            this.log(`领取零花钱: +¥${this.config.allowance}`);
+        }
+
+        // 6. 人气自然衰减
+        const hypeDecay = Math.ceil(s.hype * 0.1);
+        s.hype = Math.max(0, s.hype - hypeDecay);
+    },
+
     triggerEvents: function() {
         const s = this.state.server;
         const p = this.state.player;
 
-        if (s.health < 30) {
-            if (Math.random() < 0.6) {
-                this.log("🔥 致命错误！后台无限报错，服务器强制重启！", "log-danger");
-                s.activePlayers = 0;
-                s.hype -= 10;
-                p.passion -= 10;
-                return;
-            }
+        if (s.health < 30 && Math.random() < 0.6) {
+            this.log("🔥 严重故障！服务器强制重启！", "log-danger");
+            s.onlinePlayers = 0;
+            s.reputation -= 5;
+            p.passion -= 10;
+            return;
         }
 
         const events = [
             {
                 cond: () => p.culture < 60,
-                text: "班主任发现你上课睡觉，打电话给了家长。",
-                effect: () => { p.passion -= 10; p.energy = 50; this.log("下周精力减半！", "log-danger"); }
+                text: "作业没写完被留堂。",
+                effect: () => { p.energy = Math.max(0, p.energy - 3); this.log("精力大幅下降 (-3)！", "log-danger"); }
             },
             {
                 cond: () => s.reputation < 30,
-                text: "有熊孩子炸了主城！",
-                effect: () => { s.hype -= 15; s.health -= 20; this.log("不得不回档，玩家大量流失。", "log-danger"); }
+                text: "熊孩子炸服！",
+                effect: () => { s.hype -= 15; s.health -= 20; this.log("不得不回档，损失惨重。", "log-danger"); }
             },
             {
                 cond: () => Math.random() < 0.2,
-                text: "有个大佬在群里发布了宣传视频，火了！",
+                text: "宣传视频火了！",
                 effect: () => { s.hype += 20; this.log("人气大幅提升！", "log-success"); }
-            },
-            {
-                cond: () => Math.random() < 0.1 && this.state.mode === 'commercial',
-                text: "有人举报服务器违反EULA商业协议。",
-                effect: () => { s.reputation -= 15; this.log("口碑下降。", "log-danger"); }
             }
         ];
 
@@ -231,73 +411,218 @@ this.log(`服务器方案已确认。运营模式: [${this.state.mode === 'nonpr
         }
     },
 
-    checkGameOver: function() {
+    checkFailCondition: function() {
         const p = this.state.player;
-        let reason = "";
+        if (p.wealth < 0) return "资金链断裂。";
+        if (p.passion <= 0) return "你彻底厌倦了开服。";
+        return null;
+    },
 
-        if (p.wealth < 0) reason = "资金链断裂，服务器欠费停机。";
-        else if (p.culture < 20) reason = "期末考试总分20分，你被送去了戒网瘾学校。";
-        else if (p.passion <= 0) reason = "你彻底厌倦了处理熊孩子和报错，删库跑路了。";
+    triggerSettlement: function(isSuccess, reason = "") {
+        this.state.gameOver = true;
+        const modal = document.getElementById('settlement-modal');
+        const overlay = document.getElementById('overlay');
         
-        if (reason) {
-            this.state.gameOver = true;
-            document.getElementById('end-reason').innerText = reason;
-            document.getElementById('end-weeks').innerText = this.state.week;
-            document.getElementById('overlay').classList.remove('hidden');
-            document.getElementById('game-over-modal').classList.remove('hidden');
-            document.getElementById('setup-modal').classList.add('hidden');
+        // 结算时确保按钮是解锁状态（防止死锁），但实际上弹窗覆盖了它们
+        this.setControls(true);
+
+        const weeksSkipped = this.config.semesterLength - this.state.weekInSem;
+        const allowanceTotal = weeksSkipped * this.config.allowance;
+        
+        const elTitle = document.getElementById('settle-title');
+        const elReason = document.getElementById('settle-reason');
+        const elTime = document.getElementById('settle-time');
+        const elMoney = document.getElementById('settle-money');
+        const elHype = document.getElementById('settle-hype');
+        const elTech = document.getElementById('settle-tech');
+
+        if (isSuccess) {
+            elTitle.innerText = `初中 ${this.state.semester} 年级 - 学期圆满结束`;
+            elTitle.style.color = "var(--accent-green)";
+            elReason.innerText = "你完美平衡了学业与服务器！";
+            elTime.innerText = "按部就班进入假期";
+            elMoney.innerText = "无变动";
+            elHype.innerText = "100% (完美保留)";
+            elTech.innerText = "100% (完美保留)";
+        } else {
+            elTitle.innerText = `初中 ${this.state.semester} 年级 - 学期中途崩盘`;
+            elTitle.style.color = "var(--accent-red)";
+            elReason.innerText = `失败原因: ${reason}`;
+            elTime.innerText = `跳过 ${weeksSkipped} 周`;
+            elMoney.innerText = `获得低保: +¥${allowanceTotal}`;
+            
+            const hypeRate = 0.3 + Math.random() * 0.3;
+            const techRate = 0.6 + Math.random() * 0.3;
+            
+            elHype.innerText = `${Math.floor(hypeRate * 100)}% (玩家流失)`;
+            elTech.innerText = `${Math.floor(techRate * 100)}% (技术生疏)`;
+            
+            this.tempSettlement = {
+                allowance: allowanceTotal,
+                hypeRate: hypeRate,
+                techRate: techRate
+            };
         }
+
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    },
+
+    startNextSemester: function() {
+        const p = this.state.player;
+        const s = this.state.server;
+
+        if (this.tempSettlement) {
+            p.wealth += this.tempSettlement.allowance;
+            s.hype = Math.floor(s.hype * this.tempSettlement.hypeRate);
+            p.tech = Math.floor(p.tech * this.tempSettlement.techRate);
+            s.activePlayers = Math.floor(s.activePlayers * 0.2); 
+            this.tempSettlement = null;
+            this.log("⚠️ 经历了失败，一切百废待兴。", "log-danger");
+        } else {
+            this.log("🎉 新学期开始！继续保持优势。", "log-success");
+        }
+
+        this.state.semester++;
+        this.state.weekInSem = 1;
+        this.state.gameOver = false;
+        
+        p.energy = p.maxEnergy;
+        p.passion = 100;
+        s.health = 100;
+        s.nextBillWeek = this.state.week + 4; 
+
+        document.querySelector('header h1').innerText = `Minceraft Server (初${this.state.semester})`;
+        document.querySelector('.turn-counter').innerHTML = `第 <span id="week-display">${this.state.week}</span> 周 | 初${this.state.semester}`;
+        
+        document.getElementById('settlement-modal').classList.add('hidden');
+        document.getElementById('overlay').classList.add('hidden');
+        
+        this.updateUI();
     },
 
     checkCost: function(energy, money) {
-        if (this.state.gameOver) return false;
+        if (this.state.gameOver || this.state.isSkippingTurn || this.isProcessingQueue) return false;
         if (this.state.player.energy < energy) {
-            this.log("精力不足！先休息一下吧 (点击下一周)", "log-danger");
+            this.log("精力不足！", "log-danger");
             return false;
         }
         if (this.state.player.wealth < money) {
-            this.log("余额不足！", "log-danger");
+            this.log("资金不足！", "log-danger");
             return false;
         }
         return true;
     },
 
+    // --- 日志与队列系统 (重写) ---
+    
+    // 1. 调用此方法将消息推入队列
     log: function(msg, className = "") {
+        this.logQueue.push({ msg, className, turn: this.state.week });
+        
+        // 立即禁用按钮，防止玩家插入新操作
+        this.setControls(false);
+        
+        // 如果没有在处理，就开始处理
+        if (!this.isProcessingQueue) {
+            this.processLogQueue();
+        }
+    },
+
+    // 2. 递归处理队列
+    processLogQueue: function() {
+        // 如果队列空了，解锁并退出
+        if (this.logQueue.length === 0) {
+            this.isProcessingQueue = false;
+            if (!this.state.gameOver) {
+                this.setControls(true); // 队列处理完，恢复控制
+            }
+            return;
+        }
+
+        this.isProcessingQueue = true;
+        const item = this.logQueue.shift();
+
+        // 创建 DOM
         const panel = document.getElementById('log-panel');
         const entry = document.createElement('div');
-        entry.className = 'log-entry ' + className;
-        entry.innerHTML = `<span class="log-turn">W${this.state.week}</span> ${msg}`;
+        entry.className = 'log-entry ' + item.className + ' animate-in'; // 添加动画类
+        entry.innerHTML = `<span class="log-turn">W${item.turn}</span> ${item.msg}`;
         panel.insertBefore(entry, panel.firstChild);
+
+        // 递归调用下一条，间隔 300ms
+        setTimeout(() => {
+            this.processLogQueue();
+        }, 300); 
+    },
+
+    // 3. 统一控制按钮状态
+    setControls: function(enabled) {
+        const btns = document.querySelectorAll('.action-btn, #next-week-btn');
+        btns.forEach(btn => btn.disabled = !enabled);
     },
 
     updateUI: function() {
         const p = this.state.player;
         const s = this.state.server;
+        const hw = this.config.hardwareList[s.hardware];
 
+        // 注意：这里不再处理 button disabled 状态，而是交给 setControls 和 logQueue 管理
+        // 仅在 Game Over 时强制禁用
+        if (this.state.gameOver) {
+            this.setControls(false);
+        }
+
+        const headerText = `第 <span id="week-display">${this.state.week}</span> 周 | 初${this.state.semester}`;
+        if(document.querySelector('.turn-counter').innerHTML !== headerText) {
+             document.querySelector('.turn-counter').innerHTML = headerText;
+        }
+        
         document.getElementById('week-display').innerText = this.state.week;
-        document.getElementById('val-energy').innerText = `${p.energy}/${p.maxEnergy}`;
+        
+        const energyEl = document.getElementById('val-energy');
+        energyEl.innerText = `${p.energy}/${p.maxEnergy}`;
+        energyEl.style.color = p.energy <= 0 ? 'var(--accent-red)' : 'inherit';
+
         document.getElementById('val-culture').innerText = p.culture;
         document.getElementById('val-tech').innerText = p.tech;
         document.getElementById('val-wealth').innerText = p.wealth;
         document.getElementById('val-passion').innerText = p.passion;
         
         document.getElementById('val-health').innerText = s.health + "%";
-        document.getElementById('val-online').innerText = s.activePlayers;
-        document.getElementById('val-capacity').innerText = s.capacity;
+        document.getElementById('val-online').innerText = `${s.onlinePlayers} / ${hw.cap}`;
+        document.getElementById('val-active').innerText = s.activePlayers;
+        document.getElementById('val-hardware').innerText = hw.name;
+        
+        const weeksLeft = Math.max(0, s.nextBillWeek - this.state.week);
+        const billEl = document.getElementById('val-bill');
+        billEl.innerText = `${weeksLeft}周后`;
+        billEl.style.color = weeksLeft <= 1 ? 'var(--accent-red)' : 'inherit';
+
         document.getElementById('val-hype').innerText = s.hype;
         document.getElementById('val-reputation').innerText = s.reputation;
 
         this.setBar('bar-energy', p.energy, p.maxEnergy);
-        this.setBar('bar-culture', p.culture, 100);
         this.setBar('bar-passion', p.passion, 100);
         this.setBar('bar-health', s.health, 100);
+
+        const upgradeBtn = document.getElementById('btn-upgrade');
+        if (upgradeBtn) {
+            if (hw.next) {
+                const nextHw = this.config.hardwareList[hw.next];
+                upgradeBtn.innerHTML = `🆙 升级: ${nextHw.name}<span class="cost-tag">-¥${nextHw.cost}</span>`;
+            } else {
+                upgradeBtn.innerHTML = `🆙 已是顶配<span class="cost-tag">MAX</span>`;
+                // upgradeBtn.disabled = true; // 顶配逻辑交给 actions 内部判断，或者单独禁用
+            }
+        }
     },
 
     setBar: function(id, val, max) {
         const el = document.getElementById(id);
+        if (!el) return; 
         const pct = Math.max(0, Math.min(100, (val / max) * 100));
         el.style.width = pct + "%";
-        
         el.className = 'progress-fill';
         if (pct < 20) el.classList.add('fill-danger');
         else if (pct < 50) el.classList.add('fill-warn');

@@ -11,53 +11,47 @@
 
 <body>
 
-    <!-- 开局设置弹窗 -->
+    <!-- 开局与结算弹窗容器 -->
     <div id="overlay">
+        <!-- 1. 开局设置 -->
         <div class="modal" id="setup-modal">
             <h1 style="margin-bottom: 20px;">Minceraft 开服模拟器</h1>
             <p>请配置你的服务器初始方案：</p>
-
             <h3>1. 运营模式</h3>
             <div class="option-group" id="opt-mode">
                 <button class="choice-btn selected" onclick="selectOption('mode', 'nonprofit', this)">
-                    <strong>公益模式 (Non-Profit)</strong><br>
-                    <small style="display:block; margin-top:5px; color:#aaa;">
-                        无商业内购，依靠无偿捐赠。<br>
-                        优势：社区口碑高，管理压力小。<br>
-                        劣势：资金极为紧张。
-                    </small>
+                    <strong>公益模式</strong><br><small style="display:block;margin-top:5px;color:#aaa;">无内购，靠捐赠。<br>口碑高，资金紧。</small>
                 </button>
                 <button class="choice-btn" onclick="selectOption('mode', 'commercial', this)">
-                    <strong>商业模式 (Commercial)</strong><br>
-                    <small style="display:block; margin-top:5px; color:#aaa;">
-                        包含道具收费或会员制度。<br>
-                        优势：资金流充裕，可快速扩张。<br>
-                        劣势：玩家挑剔，易产生社区纠纷。
-                    </small>
+                    <strong>商业模式</strong><br><small style="display:block;margin-top:5px;color:#aaa;">有内购，赚大钱。<br>口碑低，易炎上。</small>
                 </button>
             </div>
-
             <h3>2. 服务器类型</h3>
             <div class="option-group" id="opt-type">
                 <button class="choice-btn selected" onclick="selectOption('type', 'vanilla', this)">
-                    <strong>纯净生存 (Vanilla)</strong><br>
-                    <small style="display:block; margin-top:5px; color:#aaa;">
-                        仅使用官方原版内容。<br>
-                        优势：技术维护简单，稳定性极高。<br>
-                        劣势：玩法单一，难以长期留存玩家。
-                    </small>
+                    <strong>纯净生存</strong><br><small style="display:block;margin-top:5px;color:#aaa;">原版内容。<br>稳定，但增长速度相对较慢。</small>
                 </button>
                 <button class="choice-btn" onclick="selectOption('type', 'modded', this)">
-                    <strong>模组科技 (Modded)</strong><br>
-                    <small style="display:block; margin-top:5px; color:#aaa;">
-                        加入工业、魔法等大量模组。<br>
-                        优势：玩法深度高，玩家粘性强。<br>
-                        劣势：技术门槛高，故障率极高。
-                    </small>
+                    <strong>模组科技</strong><br><small style="display:block;margin-top:5px;color:#aaa;">大量Mod。<br>好玩，Bug多，需要技术实力。</small>
                 </button>
             </div>
-
             <button id="next-week-btn" onclick="startGame()">初始化服务器</button>
+        </div>
+
+        <!-- 2. 学期结算弹窗 -->
+        <div class="modal hidden" id="settlement-modal">
+            <h1 id="settle-title" style="color: var(--accent-green);">学期结束</h1>
+            <p id="settle-reason" style="margin: 20px 0; font-style: italic; color: #aaa;">...</p>
+            
+            <div style="background: #222; padding: 15px; border-radius: 4px; text-align: left; margin-bottom: 20px;">
+                <div class="stat-row"><span>📅 时间跨度:</span> <span id="settle-time" class="stat-val"></span></div>
+                <div class="stat-row"><span>💰 资金变动:</span> <span id="settle-money" class="stat-val"></span></div>
+                <div class="stat-row"><span>📉 人气保留:</span> <span id="settle-hype" class="stat-val"></span></div>
+                <div class="stat-row"><span>🔧 技术保留:</span> <span id="settle-tech" class="stat-val"></span></div>
+            </div>
+
+            <p>新学期开始了，你的热情和服务器状态已重置。</p>
+            <button id="next-week-btn" onclick="Game.startNextSemester()">进入下学期</button>
         </div>
     </div>
 
@@ -73,25 +67,22 @@
             <div class="stats-group">
                 <h3>我是服主</h3>
                 <div class="stat-row">
-                    <span>精力</span> <span class="stat-val" id="val-energy">100/100</span>
+                    <span>精力</span> <span class="stat-val" id="val-energy">10/10</span>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill" id="bar-energy" style="width: 100%"></div>
                 </div>
 
                 <div class="stat-row" style="margin-top:10px">
-                    <span>学业</span> <span class="stat-val" id="val-culture">80</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="bar-culture" style="width: 80%"></div>
+                    <span>文化</span> <span class="stat-val" id="val-culture">80</span>
                 </div>
 
-                <div class="stat-row" style="margin-top:10px">
+                <div class="stat-row">
                     <span>技术能力</span> <span class="stat-val" id="val-tech">30</span>
                 </div>
 
                 <div class="stat-row">
-                    <span>财力</span> <span class="stat-val" id="val-wealth">500</span>
+                    <span>财力 (¥)</span> <span class="stat-val" id="val-wealth">500</span>
                 </div>
 
                 <div class="stat-row">
@@ -104,19 +95,31 @@
 
             <div class="stats-group">
                 <h3>服务器状态</h3>
+                
+                <!-- 新增：硬件与账单信息 -->
                 <div class="stat-row">
-                    <span>技术状态 (TPS)</span> <span class="stat-val" id="val-health">100%</span>
+                    <span>配置</span> <span class="stat-val" id="val-hardware" style="font-size:0.8rem">入门级VPS</span>
+                </div>
+                <div class="stat-row">
+                    <span>下次交租</span> <span class="stat-val" id="val-bill">4周后</span>
+                </div>
+
+                <div class="stat-row" style="margin-top:10px">
+                    <span>技术状态</span> <span class="stat-val" id="val-health">100%</span>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill" id="bar-health" style="width: 100%"></div>
                 </div>
 
+                <!-- 修改：在线人数与活跃人数 -->
                 <div class="stat-row" style="margin-top:10px">
-                    <span>在线人数</span> <span class="stat-val"><span id="val-online">0</span> / <span
-                            id="val-capacity">20</span></span>
+                    <span>当前在线</span> <span class="stat-val" id="val-online">0 / 15</span>
+                </div>
+                <div class="stat-row">
+                    <span>活跃玩家</span> <span class="stat-val" id="val-active" style="color:#aaa">0</span>
                 </div>
 
-                <div class="stat-row">
+                <div class="stat-row" style="margin-top:10px">
                     <span>人气值</span> <span class="stat-val" id="val-hype">50</span>
                 </div>
 
@@ -135,23 +138,21 @@
         <div class="panel" id="actions-panel">
             <button class="action-btn" onclick="Game.actions.maintain()">
                 🔧 维护服务器
-                <span class="cost-tag">-30精力</span>
+                <span class="cost-tag">基础: 2点</span>
             </button>
             <button class="action-btn" onclick="Game.actions.promote()">
-                📢 宣传
-                <span class="cost-tag">-40精力 -¥50</span>
-            </button>
-            <button class="action-btn" onclick="Game.actions.study()">
-                📚 学习
-                <span class="cost-tag">-50精力</span>
+                📢 社区宣传
+                <span class="cost-tag">基础: 3点 -¥50</span>
             </button>
             <button class="action-btn" onclick="Game.actions.work()">
-                💰 打工
-                <span class="cost-tag">-60精力</span>
+                💰 兼职打工
+                <span class="cost-tag">基础: 3点</span>
             </button>
-            <button class="action-btn" onclick="Game.actions.upgrade()">
+            
+            <!-- 修改：增加了 ID 以便动态更新文本 -->
+            <button class="action-btn" id="btn-upgrade" onclick="Game.actions.upgrade()">
                 🆙 升级配置
-                <span class="cost-tag">-¥200</span>
+                <span class="cost-tag">检查中...</span>
             </button>
         </div>
 
