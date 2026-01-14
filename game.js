@@ -1,9 +1,9 @@
 // === 游戏数据结构 ===
 const Game = {
     state: {
-        semester: 1,
-        week: 1,
-        weekInSem: 1,
+        semester: 1,    // 对应年级：1=初一, 4=高一, 7=大一
+        week: 1,        // 总周数
+        weekInSem: 1,   // 本学期进度 (1-24)
         gameOver: false,
         isSkippingTurn: false,
         mode: 'nonprofit',
@@ -34,7 +34,7 @@ const Game = {
 
     config: {
         energyRegen: 3,
-        semesterLength: 24,
+        semesterLength: 24, // 每学年24周
         allowance: 50, 
         
         hardwareList: {
@@ -48,7 +48,14 @@ const Game = {
             maintain: 2,
             promote: 3,
             work: 3
-        }
+        },
+
+        // 年级名称映射表
+        gradeNames: [
+            "初一", "初二", "初三",
+            "高一", "高二", "高三",
+            "大一", "大二", "大三", "大四"
+        ]
     },
 
     // === 核心方法 ===
@@ -71,6 +78,11 @@ const Game = {
 
         this.state.server.hardware = 'vps_basic';
         this.state.server.nextBillWeek = 4;
+        
+        // 重置状态
+        this.state.semester = 1; 
+        this.state.week = 1;
+        this.state.weekInSem = 1;
 
         this.log("服务器初始化完成...", "log-event");
         this.log(`当前配置: [${this.config.hardwareList['vps_basic'].name}] (月租 ¥${this.config.hardwareList['vps_basic'].cost})`);
@@ -78,6 +90,16 @@ const Game = {
         this.updateUI();
         document.getElementById('setup-modal').classList.add('hidden');
         document.getElementById('overlay').classList.add('hidden');
+    },
+
+    // --- 辅助：获取当前年级名称 ---
+    getGradeName: function(level) {
+        const index = level - 1;
+        if (index < this.config.gradeNames.length) {
+            return this.config.gradeNames[index];
+        } else {
+            return "社会人 (" + (index - 9) + "年)"; // 大四之后
+        }
     },
 
     // --- 辅助：计算行动消耗 ---
@@ -423,11 +445,11 @@ const Game = {
         const modal = document.getElementById('settlement-modal');
         const overlay = document.getElementById('overlay');
         
-        // 结算时确保按钮是解锁状态（防止死锁），但实际上弹窗覆盖了它们
         this.setControls(true);
 
         const weeksSkipped = this.config.semesterLength - this.state.weekInSem;
         const allowanceTotal = weeksSkipped * this.config.allowance;
+        const gradeTitle = this.getGradeName(this.state.semester); // 获取当前年级名称
         
         const elTitle = document.getElementById('settle-title');
         const elReason = document.getElementById('settle-reason');
@@ -437,7 +459,7 @@ const Game = {
         const elTech = document.getElementById('settle-tech');
 
         if (isSuccess) {
-            elTitle.innerText = `初中 ${this.state.semester} 年级 - 学期圆满结束`;
+            elTitle.innerText = `${gradeTitle} - 学年圆满结束`;
             elTitle.style.color = "var(--accent-green)";
             elReason.innerText = "你完美平衡了学业与服务器！";
             elTime.innerText = "按部就班进入假期";
@@ -445,7 +467,7 @@ const Game = {
             elHype.innerText = "100% (完美保留)";
             elTech.innerText = "100% (完美保留)";
         } else {
-            elTitle.innerText = `初中 ${this.state.semester} 年级 - 学期中途崩盘`;
+            elTitle.innerText = `${gradeTitle} - 学年中途崩盘`;
             elTitle.style.color = "var(--accent-red)";
             elReason.innerText = `失败原因: ${reason}`;
             elTime.innerText = `跳过 ${weeksSkipped} 周`;
@@ -480,10 +502,10 @@ const Game = {
             this.tempSettlement = null;
             this.log("⚠️ 经历了失败，一切百废待兴。", "log-danger");
         } else {
-            this.log("🎉 新学期开始！继续保持优势。", "log-success");
+            this.log("🎉 新学年开始！继续保持优势。", "log-success");
         }
 
-        this.state.semester++;
+        this.state.semester++; // 升级年级
         this.state.weekInSem = 1;
         this.state.gameOver = false;
         
@@ -492,8 +514,9 @@ const Game = {
         s.health = 100;
         s.nextBillWeek = this.state.week + 4; 
 
-        document.querySelector('header h1').innerText = `Minceraft Server (初${this.state.semester})`;
-        document.querySelector('.turn-counter').innerHTML = `第 <span id="week-display">${this.state.week}</span> 周 | 初${this.state.semester}`;
+        // UI 更新会由 updateUI 处理，但先检查是否毕业
+        const newGrade = this.getGradeName(this.state.semester);
+        document.querySelector('header h1').innerText = `Minceraft Server (${newGrade})`;
         
         document.getElementById('settlement-modal').classList.add('hidden');
         document.getElementById('overlay').classList.add('hidden');
@@ -514,28 +537,20 @@ const Game = {
         return true;
     },
 
-    // --- 日志与队列系统 (重写) ---
-    
-    // 1. 调用此方法将消息推入队列
+    // --- 日志与队列系统 ---
     log: function(msg, className = "") {
         this.logQueue.push({ msg, className, turn: this.state.week });
-        
-        // 立即禁用按钮，防止玩家插入新操作
         this.setControls(false);
-        
-        // 如果没有在处理，就开始处理
         if (!this.isProcessingQueue) {
             this.processLogQueue();
         }
     },
 
-    // 2. 递归处理队列
     processLogQueue: function() {
-        // 如果队列空了，解锁并退出
         if (this.logQueue.length === 0) {
             this.isProcessingQueue = false;
             if (!this.state.gameOver) {
-                this.setControls(true); // 队列处理完，恢复控制
+                this.setControls(true); 
             }
             return;
         }
@@ -543,20 +558,17 @@ const Game = {
         this.isProcessingQueue = true;
         const item = this.logQueue.shift();
 
-        // 创建 DOM
         const panel = document.getElementById('log-panel');
         const entry = document.createElement('div');
-        entry.className = 'log-entry ' + item.className + ' animate-in'; // 添加动画类
+        entry.className = 'log-entry ' + item.className + ' animate-in'; 
         entry.innerHTML = `<span class="log-turn">W${item.turn}</span> ${item.msg}`;
         panel.insertBefore(entry, panel.firstChild);
 
-        // 递归调用下一条，间隔 300ms
         setTimeout(() => {
             this.processLogQueue();
         }, 300); 
     },
 
-    // 3. 统一控制按钮状态
     setControls: function(enabled) {
         const btns = document.querySelectorAll('.action-btn, #next-week-btn');
         btns.forEach(btn => btn.disabled = !enabled);
@@ -567,15 +579,22 @@ const Game = {
         const s = this.state.server;
         const hw = this.config.hardwareList[s.hardware];
 
-        // 注意：这里不再处理 button disabled 状态，而是交给 setControls 和 logQueue 管理
-        // 仅在 Game Over 时强制禁用
         if (this.state.gameOver) {
             this.setControls(false);
         }
 
-        const headerText = `第 <span id="week-display">${this.state.week}</span> 周 | 初${this.state.semester}`;
+        // 使用 getGradeName 获取正确的年级显示
+        const gradeTitle = this.getGradeName(this.state.semester);
+        const headerText = `第 <span id="week-display">${this.state.week}</span> 周 | ${gradeTitle}`;
+        
         if(document.querySelector('.turn-counter').innerHTML !== headerText) {
              document.querySelector('.turn-counter').innerHTML = headerText;
+        }
+        
+        // 同时更新 Header 大标题
+        const headerTitle = `Minceraft Server (${gradeTitle})`;
+        if(document.querySelector('header h1').innerText !== headerTitle) {
+            document.querySelector('header h1').innerText = headerTitle;
         }
         
         document.getElementById('week-display').innerText = this.state.week;
@@ -613,7 +632,6 @@ const Game = {
                 upgradeBtn.innerHTML = `🆙 升级: ${nextHw.name}<span class="cost-tag">-¥${nextHw.cost}</span>`;
             } else {
                 upgradeBtn.innerHTML = `🆙 已是顶配<span class="cost-tag">MAX</span>`;
-                // upgradeBtn.disabled = true; // 顶配逻辑交给 actions 内部判断，或者单独禁用
             }
         }
     },
