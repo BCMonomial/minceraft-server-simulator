@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minceraft 开服模拟器 - 初中生版</title>
+    <!-- 引用样式文件 -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- 开局设置弹窗 -->
+    <div id="overlay">
+        <div class="modal" id="setup-modal">
+            <h1 style="margin-bottom: 20px;">Minceraft 开服模拟器</h1>
+            <p>请配置你的服务器初始方案：</p>
+
+            <h3>1. 运营模式</h3>
+            <div class="option-group" id="opt-mode">
+                <button class="choice-btn selected" onclick="selectOption('mode', 'nonprofit', this)">
+                    <strong>公益模式 (Non-Profit)</strong><br>
+                    <small style="display:block; margin-top:5px; color:#aaa;">
+                        无商业内购，依靠无偿捐赠。<br>
+                        优势：社区口碑高，管理压力小。<br>
+                        劣势：资金极为紧张。
+                    </small>
+                </button>
+                <button class="choice-btn" onclick="selectOption('mode', 'commercial', this)">
+                    <strong>商业模式 (Commercial)</strong><br>
+                    <small style="display:block; margin-top:5px; color:#aaa;">
+                        包含道具收费或会员制度。<br>
+                        优势：资金流充裕，可快速扩张。<br>
+                        劣势：玩家挑剔，易产生社区纠纷。
+                    </small>
+                </button>
+            </div>
+
+            <h3>2. 服务器类型</h3>
+            <div class="option-group" id="opt-type">
+                <button class="choice-btn selected" onclick="selectOption('type', 'vanilla', this)">
+                    <strong>纯净生存 (Vanilla)</strong><br>
+                    <small style="display:block; margin-top:5px; color:#aaa;">
+                        仅使用官方原版内容。<br>
+                        优势：技术维护简单，稳定性极高。<br>
+                        劣势：玩法单一，难以长期留存玩家。
+                    </small>
+                </button>
+                <button class="choice-btn" onclick="selectOption('type', 'modded', this)">
+                    <strong>模组科技 (Modded)</strong><br>
+                    <small style="display:block; margin-top:5px; color:#aaa;">
+                        加入工业、魔法等大量模组。<br>
+                        优势：玩法深度高，玩家粘性强。<br>
+                        劣势：技术门槛高，故障率极高。
+                    </small>
+                </button>
+            </div>
+
+            <button id="next-week-btn" onclick="startGame()">初始化服务器</button>
+        </div>
+    </div>
+
+    <!-- 游戏主界面 -->
+    <div id="game-container">
+        <header>
+            <h1>Minceraft Server</h1>
+            <div class="turn-counter">第 <span id="week-display">1</span> 周 | 初二上学期</div>
+        </header>
+
+        <!-- 左侧属性 -->
+        <div class="panel" id="stats-panel">
+            <div class="stats-group">
+                <h3>我是服主</h3>
+                <div class="stat-row">
+                    <span>精力</span> <span class="stat-val" id="val-energy">100/100</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="bar-energy" style="width: 100%"></div>
+                </div>
+
+                <div class="stat-row" style="margin-top:10px">
+                    <span>学业</span> <span class="stat-val" id="val-culture">80</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="bar-culture" style="width: 80%"></div>
+                </div>
+
+                <div class="stat-row" style="margin-top:10px">
+                    <span>技术能力</span> <span class="stat-val" id="val-tech">30</span>
+                </div>
+
+                <div class="stat-row">
+                    <span>财力</span> <span class="stat-val" id="val-wealth">500</span>
+                </div>
+
+                <div class="stat-row">
+                    <span>热情</span> <span class="stat-val" id="val-passion">100</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="bar-passion" style="width: 100%"></div>
+                </div>
+            </div>
+
+            <div class="stats-group">
+                <h3>服务器状态</h3>
+                <div class="stat-row">
+                    <span>技术状态 (TPS)</span> <span class="stat-val" id="val-health">100%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="bar-health" style="width: 100%"></div>
+                </div>
+
+                <div class="stat-row" style="margin-top:10px">
+                    <span>在线人数</span> <span class="stat-val"><span id="val-online">0</span> / <span
+                            id="val-capacity">20</span></span>
+                </div>
+
+                <div class="stat-row">
+                    <span>人气值</span> <span class="stat-val" id="val-hype">50</span>
+                </div>
+
+                <div class="stat-row">
+                    <span>口碑</span> <span class="stat-val" id="val-reputation">60</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 中间日志 -->
+        <div class="panel" id="log-panel">
+            <div class="log-entry"><span class="log-turn">系统</span> 欢迎来到开服模拟器。请选择行动。</div>
+        </div>
+
+        <!-- 右侧行动 -->
+        <div class="panel" id="actions-panel">
+            <button class="action-btn" onclick="Game.actions.maintain()">
+                🔧 维护服务器
+                <span class="cost-tag">-30精力</span>
+            </button>
+            <button class="action-btn" onclick="Game.actions.promote()">
+                📢 宣传
+                <span class="cost-tag">-40精力 -¥50</span>
+            </button>
+            <button class="action-btn" onclick="Game.actions.study()">
+                📚 学习
+                <span class="cost-tag">-50精力</span>
+            </button>
+            <button class="action-btn" onclick="Game.actions.work()">
+                💰 打工
+                <span class="cost-tag">-60精力</span>
+            </button>
+            <button class="action-btn" onclick="Game.actions.upgrade()">
+                🆙 升级配置
+                <span class="cost-tag">-¥200</span>
+            </button>
+        </div>
+
+        <!-- 底部 -->
+        <div class="panel" id="controls-panel">
+            <button id="next-week-btn" onclick="Game.nextTurn()">下一周 (结算)</button>
+        </div>
+    </div>
+
+    <!-- 引用脚本文件 -->
+    <script src="game.js"></script>
+</body>
+
+</html>

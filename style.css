@@ -1,0 +1,143 @@
+:root {
+    --bg-color: #1a1a1a;
+    --panel-bg: #2b2b2b;
+    --text-main: #e0e0e0;
+    --accent-green: #55aa55;
+    --accent-red: #aa5555;
+    --accent-blue: #5555aa;
+    --border-color: #444;
+}
+
+body {
+    font-family: 'Courier New', Courier, monospace;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    height: 100vh;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+#game-container {
+    display: grid;
+    grid-template-columns: 250px 1fr 250px;
+    grid-template-rows: 60px 1fr 80px;
+    gap: 15px;
+    width: 1200px;
+    max-width: 100%;
+    height: 100%;
+}
+
+.panel {
+    background: var(--panel-bg);
+    border: 2px solid var(--border-color);
+    padding: 15px;
+    border-radius: 4px;
+    overflow-y: auto;
+}
+
+header {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--accent-green);
+    padding: 0 20px;
+    background: #222;
+}
+
+h1 { margin: 0; font-size: 1.5rem; color: var(--accent-green); }
+.turn-counter { font-size: 1.2rem; font-weight: bold; }
+
+.stats-group { margin-bottom: 20px; }
+.stats-group h3 { border-bottom: 1px solid #666; padding-bottom: 5px; margin-top: 0; font-size: 1rem; color: #aaa; }
+.stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; }
+.stat-val { font-weight: bold; }
+
+.progress-bar { height: 6px; background: #444; margin-top: 2px; border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent-green); transition: width 0.3s; }
+.fill-danger { background: var(--accent-red); }
+.fill-warn { background: #aa8800; }
+
+#log-panel {
+    grid-column: 2;
+    grid-row: 2;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    display: flex;
+    flex-direction: column-reverse;
+}
+.log-entry { margin-bottom: 8px; border-bottom: 1px dashed #333; padding-bottom: 4px; }
+.log-turn { color: #888; font-size: 0.8em; margin-right: 5px; }
+.log-event { color: var(--accent-blue); font-weight: bold; }
+.log-danger { color: var(--accent-red); }
+.log-success { color: var(--accent-green); }
+
+#actions-panel { grid-column: 3; grid-row: 2; display: flex; flex-direction: column; gap: 10px; }
+button.action-btn {
+    background: #333;
+    border: 1px solid #666;
+    color: white;
+    padding: 12px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+    position: relative;
+}
+button.action-btn:hover:not(:disabled) { background: #444; border-color: var(--accent-green); }
+button.action-btn:active:not(:disabled) { transform: translateY(2px); }
+button.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.cost-tag { float: right; font-size: 0.8em; color: #888; }
+
+#controls-panel {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#next-week-btn {
+    background: var(--accent-green);
+    color: #000;
+    font-weight: bold;
+    font-size: 1.2rem;
+    padding: 10px 40px;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+#next-week-btn:hover { background: #66cc66; }
+
+#overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 100;
+}
+.modal {
+    background: var(--panel-bg);
+    border: 2px solid var(--accent-green);
+    padding: 30px;
+    width: 600px;
+    max-width: 90%;
+    text-align: center;
+}
+.option-group { display: flex; gap: 20px; justify-content: center; margin: 20px 0; }
+.choice-btn {
+    flex: 1; padding: 15px; background: #333; border: 1px solid #555; color: white; cursor: pointer;
+}
+.choice-btn.selected { border-color: var(--accent-green); background: #2a3a2a; }
+
+.hidden { display: none !important; }
+
+.choice-btn small {
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+.choice-btn strong {
+    font-size: 1.1rem;
+    color: var(--accent-green);
+}
