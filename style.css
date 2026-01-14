@@ -14,16 +14,19 @@ body {
     color: var(--text-main);
     margin: 0;
     padding: 20px;
+    /* 默认桌面端保持一屏体验 */
     display: flex;
     justify-content: center;
     height: 100vh;
     box-sizing: border-box;
-    overflow: hidden;
+    overflow: hidden; 
 }
 
+/* === 游戏主容器布局 === */
 #game-container {
     display: grid;
-    grid-template-columns: 250px 1fr 250px;
+    /* 桌面端：左侧属性 | 中间日志 | 右侧行动 */
+    grid-template-columns: 280px 1fr 260px; 
     grid-template-rows: 60px 1fr 80px;
     gap: 15px;
     width: 1200px;
@@ -31,52 +34,79 @@ body {
     height: 100%;
 }
 
+/* 通用面板样式 */
 .panel {
     background: var(--panel-bg);
     border: 2px solid var(--border-color);
     padding: 15px;
     border-radius: 4px;
     overflow-y: auto;
+    /* 隐藏滚动条但允许滚动 (Chrome/Safari) */
+    scrollbar-width: thin; 
+    scrollbar-color: #555 #2b2b2b;
 }
 
+/* === 头部 === */
 header {
     grid-column: 1 / -1;
     display: flex;
     justify-content: space-between;
     align-items: center;
     border-bottom: 2px solid var(--accent-green);
-    padding: 0 20px;
+    padding: 0 10px;
     background: #222;
 }
 
 h1 { margin: 0; font-size: 1.5rem; color: var(--accent-green); }
-.turn-counter { font-size: 1.2rem; font-weight: bold; }
+.turn-counter { font-size: 1.1rem; font-weight: bold; }
+
+/* === 属性面板 (左侧) === */
+#stats-panel {
+    grid-column: 1;
+    grid-row: 2;
+}
 
 .stats-group { margin-bottom: 20px; }
 .stats-group h3 { border-bottom: 1px solid #666; padding-bottom: 5px; margin-top: 0; font-size: 1rem; color: #aaa; }
-.stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; }
+.stat-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.9rem; }
 .stat-val { font-weight: bold; }
 
-.progress-bar { height: 6px; background: #444; margin-top: 2px; border-radius: 3px; overflow: hidden; }
+.progress-bar { height: 6px; background: #444; margin-top: 2px; border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
 .progress-fill { height: 100%; background: var(--accent-green); transition: width 0.3s; }
 .fill-danger { background: var(--accent-red); }
 .fill-warn { background: #aa8800; }
 
+/* === 日志面板 (中间) === */
 #log-panel {
     grid-column: 2;
     grid-row: 2;
     font-size: 0.95rem;
     line-height: 1.4;
     display: flex;
-    flex-direction: column-reverse;
+    flex-direction: column-reverse; /* 新日志在底部，像终端一样 */
+    background: #222; /* 日志背景深一点 */
 }
-.log-entry { margin-bottom: 8px; border-bottom: 1px dashed #333; padding-bottom: 4px; }
+.log-entry { margin-bottom: 8px; border-bottom: 1px dashed #333; padding-bottom: 4px; word-break: break-all; }
 .log-turn { color: #888; font-size: 0.8em; margin-right: 5px; }
 .log-event { color: var(--accent-blue); font-weight: bold; }
 .log-danger { color: var(--accent-red); }
 .log-success { color: var(--accent-green); }
 
-#actions-panel { grid-column: 3; grid-row: 2; display: flex; flex-direction: column; gap: 10px; }
+/* === 动画效果 === */
+@keyframes fadeInSlide {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.log-entry.animate-in { animation: fadeInSlide 0.4s ease-out forwards; }
+
+/* === 行动面板 (右侧) === */
+#actions-panel { 
+    grid-column: 3; 
+    grid-row: 2; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 10px; 
+}
 button.action-btn {
     background: #333;
     border: 1px solid #666;
@@ -86,12 +116,14 @@ button.action-btn {
     text-align: left;
     transition: all 0.2s;
     position: relative;
+    font-size: 1rem;
 }
 button.action-btn:hover:not(:disabled) { background: #444; border-color: var(--accent-green); }
 button.action-btn:active:not(:disabled) { transform: translateY(2px); }
-button.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.cost-tag { float: right; font-size: 0.8em; color: #888; }
+button.action-btn:disabled { opacity: 0.5; cursor: wait; filter: grayscale(0.8); }
+.cost-tag { float: right; font-size: 0.75em; color: #aaa; margin-top: 2px; }
 
+/* === 底部控制栏 === */
 #controls-panel {
     grid-column: 1 / -1;
     grid-row: 3;
@@ -104,69 +136,126 @@ button.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     color: #000;
     font-weight: bold;
     font-size: 1.2rem;
-    padding: 10px 40px;
+    padding: 12px 50px;
     border: none;
     cursor: pointer;
     border-radius: 4px;
+    width: 100%; /* 移动端友好 */
+    max-width: 400px;
 }
-#next-week-btn:hover { background: #66cc66; }
+#next-week-btn:hover:not(:disabled) { background: #66cc66; }
+#next-week-btn:disabled { opacity: 0.6; cursor: wait; }
 
+/* === 弹窗与遮罩 === */
 #overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.85);
+    background: rgba(0,0,0,0.9);
     display: flex; justify-content: center; align-items: center;
     z-index: 100;
+    overflow-y: auto; /* 防止弹窗内容过高无法滚动 */
+    padding: 20px;
+    box-sizing: border-box;
 }
 .modal {
     background: var(--panel-bg);
     border: 2px solid var(--accent-green);
-    padding: 30px;
+    padding: 25px;
     width: 600px;
-    max-width: 90%;
+    max-width: 100%;
     text-align: center;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
 }
-.option-group { display: flex; gap: 20px; justify-content: center; margin: 20px 0; }
+.option-group { display: flex; gap: 15px; justify-content: center; margin: 20px 0; }
 .choice-btn {
     flex: 1; padding: 15px; background: #333; border: 1px solid #555; color: white; cursor: pointer;
+    transition: all 0.2s;
 }
-.choice-btn.selected { border-color: var(--accent-green); background: #2a3a2a; }
+.choice-btn.selected { border-color: var(--accent-green); background: #2a3a2a; transform: scale(1.02); }
+.choice-btn small { font-size: 0.8rem; line-height: 1.4; color: #aaa; display: block; margin-top: 5px; }
+.choice-btn strong { font-size: 1.1rem; color: var(--accent-green); }
 
 .hidden { display: none !important; }
 
-.choice-btn small {
-    font-size: 0.8rem;
-    line-height: 1.4;
-}
-.choice-btn strong {
-    font-size: 1.1rem;
-    color: var(--accent-green);
-}
-
-#val-energy {
-    font-size: 1.1em;
-    color: var(--accent-green);
-}
-
-@keyframes fadeInSlide {
-    from {
-        opacity: 0;
-        transform: translateY(-10px); /* 从上方一点点滑入 */
+/* =========================================
+   移动端适配 (响应式断点)
+   ========================================= */
+@media screen and (max-width: 900px) {
+    body {
+        /* 移动端允许滚动 */
+        height: auto;
+        overflow-y: auto;
+        padding: 10px;
+        display: block; /* 取消 flex center */
     }
-    to {
-        opacity: 1;
-        transform: translateY(0);
+
+    #game-container {
+        display: flex;
+        flex-direction: column; /* 垂直排列 */
+        gap: 10px;
+        height: auto;
+        width: 100%;
     }
-}
 
-/* 应用动画的类 */
-.log-entry.animate-in {
-    animation: fadeInSlide 0.4s ease-out forwards;
-}
+    /* 头部 */
+    header {
+        position: sticky; /* 头部吸顶 */
+        top: 0;
+        z-index: 10;
+        padding: 10px 5px;
+        border-bottom-width: 3px;
+    }
+    h1 { font-size: 1.2rem; }
+    .turn-counter { font-size: 0.9rem; }
 
-/* 禁用状态下的按钮样式增强 */
-button.action-btn:disabled,
-#next-week-btn:disabled {
-    opacity: 0.5;
-    cursor: wait; /* 鼠标变成等待漏斗 */
-    filter: grayscale(0.8);
+    /* 属性面板 */
+    #stats-panel {
+        order: 2; /* 排列顺序 */
+        max-height: 300px; /* 限制高度，防止太长 */
+        display: grid;
+        grid-template-columns: 1fr 1fr; /* 属性分两列显示以节省空间 */
+        gap: 15px;
+    }
+    .stats-group { margin-bottom: 0; }
+    
+    /* 日志面板 */
+    #log-panel {
+        order: 4;
+        height: 200px; /* 固定高度，内部滚动 */
+        border-top: 1px solid #444;
+        border-bottom: 1px solid #444;
+    }
+
+    /* 行动面板 */
+    #actions-panel {
+        order: 3;
+        display: grid;
+        grid-template-columns: 1fr 1fr; /* 按钮分两列 */
+        gap: 8px;
+    }
+    /* 升级按钮占满一行，因为它文字长 */
+    #btn-upgrade { grid-column: 1 / -1; }
+
+    /* 底部控制 */
+    #controls-panel {
+        order: 5;
+        position: sticky;
+        bottom: 0;
+        background: var(--bg-color);
+        padding: 10px 0;
+        z-index: 10;
+        border-top: 1px solid #333;
+    }
+
+    /* 弹窗适配 */
+    .option-group {
+        flex-direction: column; /* 选项垂直排列 */
+    }
+    .choice-btn {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    .modal {
+        padding: 15px;
+        margin-top: 50px; /* 防止被软键盘或顶部遮挡 */
+    }
 }
